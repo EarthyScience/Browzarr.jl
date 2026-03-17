@@ -1,0 +1,13 @@
+name = "Browzarr"
+uuid = "d7a009df-479f-4526-be69-544662986fe6"
+version = "0.1.0"
+authors = ["Lazaro Alonso <lazarus.alon@gmail.com>", "Jeran Poehls <jpoehls@bgc-jena.mpg.de>"]
+
+[deps]
+HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
+Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
+
+[compat]
+HTTP = "1.11.0"
+Pkg = "1.12.1"
+julia = "1.10"
