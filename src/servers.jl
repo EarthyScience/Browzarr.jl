@@ -1,11 +1,11 @@
-function start_browzarr(; port::Int = 3000, host::String = "127.0.0.1")
+function start_browzarr(; port::Int = 3000, host::String = "127.0.0.1", store::Union{String,Nothing} = nothing)
     return lock(SERVERS_LOCK) do
         haskey(SERVERS, port) && error("Server already running on port $port")
         dir = joinpath(artifact"Browzarr", "app")
         handler = static_handler(dir)
         task = @async HTTP.serve(handler, host, port)
 
-        srv = BrowzarrServer(task, host, port)
+        srv = BrowzarrServer(task, host, port, store)
         SERVERS[port] = srv
 
         atexit(
@@ -89,8 +89,15 @@ catch
     false
 end
 
+function server_url(srv::BrowzarrServer)
+    base = "http://$(srv.host):$(srv.port)"
+    isnothing(srv.store) && return base
+    encoded = HTTP.URIs.escapeuri(srv.store)
+    return "$base/?store=$encoded"
+end
+
 function open_browser(srv::BrowzarrServer)
-    url = "http://$(srv.host):$(srv.port)"
+    url = server_url(srv)
     launch_browzarr(url)
     return url
 end
@@ -104,7 +111,7 @@ function Base.show(io::IO, ::MIME"text/html", iframe::BrowzarrIframe)
 end
 
 function browzarr_iframe(srv::BrowzarrServer; width = "100%", height = "600px")
-    url = "http://$(srv.host):$(srv.port)"
+    url = server_url(srv)
     html = """<iframe src="$url" width="$width" height="$height" frameborder="0"></iframe>"""
     return BrowzarrIframe(html)
 end
