@@ -9,6 +9,7 @@ struct BrowzarrServer
     host::String
     port::Int
     store::Union{String, Nothing}
+    format::Union{String, Nothing}
 end
 
 const SERVERS = Dict{Int, BrowzarrServer}()

@@ -1,11 +1,11 @@
-function start_browzarr(; port::Int = 3000, host::String = "127.0.0.1", store::Union{String,Nothing} = nothing)
+function start_browzarr(; port::Int = 3000, host::String = "127.0.0.1", store::Union{String, Nothing} = nothing)
     return lock(SERVERS_LOCK) do
         haskey(SERVERS, port) && error("Server already running on port $port")
         dir = joinpath(artifact"Browzarr", "app")
         handler = static_handler(dir)
         task = @async HTTP.serve(handler, host, port)
 
-        srv = BrowzarrServer(task, host, port, store)
+        srv = BrowzarrServer(task, host, port, store, detect_format(store))
         SERVERS[port] = srv
 
         atexit(
@@ -16,6 +16,11 @@ function start_browzarr(; port::Int = 3000, host::String = "127.0.0.1", store::U
 
         return srv
     end
+end
+
+function detect_format(store::Union{String, Nothing})
+    isnothing(store) && return nothing
+    return endswith(store, ".nc") || endswith(store, ".nc4") ? "nc" : nothing
 end
 
 function stop!(srv::BrowzarrServer)
@@ -93,7 +98,9 @@ function server_url(srv::BrowzarrServer)
     base = "http://$(srv.host):$(srv.port)"
     isnothing(srv.store) && return base
     encoded = HTTP.URIs.escapeuri(srv.store)
-    return "$base/?store=$encoded"
+    url = "$base/?store=$encoded"
+    !isnothing(srv.format) && (url *= "&format=$(srv.format)")
+    return url
 end
 
 function open_browser(srv::BrowzarrServer)
