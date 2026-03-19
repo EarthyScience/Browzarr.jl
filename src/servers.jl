@@ -2,7 +2,7 @@ function start_browzarr(; port::Int = 3000, host::String = "127.0.0.1", store::U
     return lock(SERVERS_LOCK) do
         haskey(SERVERS, port) && error("Server already running on port $port")
         dir = joinpath(artifact"Browzarr", "app")
-        handler = static_handler(dir)
+        handler = static_handler(dir, store)
         task = @async HTTP.serve(handler, host, port)
 
         srv = BrowzarrServer(task, host, port, store, detect_format(store))

@@ -9,6 +9,10 @@ const known_mimetypes = Dict(
     "ico" => "image/x-icon",
     "woff2" => "font/woff2",
     "wasm" => "application/wasm",
+    "nc" => "application/x-netcdf",
+    "nc3" => "application/x-netcdf",
+    "nc4" => "application/x-netcdf",
+    "ncdf" => "application/x-netcdf",
 )
 
 function extension(f)
@@ -23,15 +27,18 @@ function ext_to_mimetype(ext)
     return get(known_mimetypes, ext, "application/octet-stream")
 end
 
-function file_handler(req)
+function file_handler(store::Union{String, Nothing}, req)
+    isnothing(store) && return HTTP.Response(400, "No store configured")
     uri = HTTP.URIs.URI(req.target)
     path = get(HTTP.URIs.queryparams(uri), "path", nothing)
+
     isnothing(path) && return HTTP.Response(400, "Missing path")
+    path != store && return HTTP.Response(403, "Forbidden")
     !isfile(path) && return HTTP.Response(404, "File not found: $path")
 
     filesize = stat(path).size
     headers = [
-        "Content-Type" => "application/octet-stream",
+        "Content-Type" => file_mimetype(path),
         "Content-Length" => string(filesize),
         "Accept-Ranges" => "bytes",
         "Access-Control-Allow-Origin" => "*",
@@ -46,10 +53,10 @@ function file_handler(req)
             start = parse(Int, m[1])
             stop = isempty(m[2]) ? filesize - 1 : parse(Int, m[2])
             len = stop - start + 1
-            io = open(path, "r")
-            seek(io, start)
-            body = read(io, len)
-            close(io)
+            body = open(path, "r") do io
+                seek(io, start)
+                read(io, len)
+            end
             return HTTP.Response(
                 206, [
                     headers...,
@@ -60,12 +67,12 @@ function file_handler(req)
         end
     end
 
-    return HTTP.Response(200, headers; body = read(path))
+    return HTTP.Response(200, headers; body = open(path, "r"))
 end
 
-function static_handler(dir::String)
+function static_handler(dir::String, store::Union{String, Nothing})
     return function (req)
-        startswith(req.target, "/file") && return file_handler(req)
+        startswith(req.target, "/file") && return file_handler(store, req)
 
         path = split(req.target, "?")[1]
         path = lstrip(path, '/')
