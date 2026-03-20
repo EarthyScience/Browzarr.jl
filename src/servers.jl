@@ -3,9 +3,9 @@ function start_browzarr(; port::Int = 3000, host::String = "127.0.0.1", store::U
         haskey(SERVERS, port) && error("Server already running on port $port")
         dir = joinpath(artifact"Browzarr", "app")
         handler = static_handler(dir, store)
-        task = @async HTTP.serve(handler, host, port)
+        server = HTTP.serve!(handler, host, port)
 
-        srv = BrowzarrServer(task, host, port, store, detect_format(store))
+        srv = BrowzarrServer(server, host, port, store, detect_format(store))
         SERVERS[port] = srv
 
         atexit(
@@ -24,17 +24,7 @@ function detect_format(store::Union{String, Nothing})
 end
 
 function stop!(srv::BrowzarrServer)
-    if !istaskdone(srv.task)
-        try
-            Base.throwto(srv.task, InterruptException())
-            wait(srv.task)
-        catch e
-            e isa InterruptException && return
-            e isa TaskFailedException &&
-                e.task.exception isa InterruptException && return
-            rethrow(e)
-        end
-    end
+    close(srv.server)
     return @info "Browzarr server stopped" port = srv.port
 end
 
@@ -113,9 +103,10 @@ struct BrowzarrIframe
     html::String
 end
 
-function Base.show(io::IO, ::MIME"text/html", iframe::BrowzarrIframe)
+function Base.show(io::IO, ::MIME"juliavscode/html", iframe::BrowzarrIframe)
     return print(io, iframe.html)
 end
+Base.showable(::MIME"juliavscode/html", ::BrowzarrIframe) = true
 
 function browzarr_iframe(srv::BrowzarrServer; width = "100%", height = "600px")
     url = server_url(srv)
@@ -132,11 +123,18 @@ function in_notebook()
     if isdefined(Main, :PlutoRunner)
         return true
     end
-    # VS Code and Cursor (Cursor embeds VS Code's Julia extension)
-    if isdefined(Main, :VSCodeServer)
-        return true
-    end
     return false
+end
+
+function in_vscode()
+    return isdefined(Main, :VSCodeServer)
+end
+
+function _display_vscode(srv::BrowzarrServer)
+    url = server_url(srv)
+    iframe = browzarr_iframe(srv)
+    display(MIME("juliavscode/html"), iframe)
+    return @info "Browzarr displayed in VS Code plot pane" url = url
 end
 
 function wait_for_server(host, port; timeout = 10.0)

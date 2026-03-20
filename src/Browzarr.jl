@@ -5,7 +5,7 @@ using Pkg.Artifacts
 using HTTP
 
 struct BrowzarrServer
-    task::Task
+    server::HTTP.Servers.Server
     host::String
     port::Int
     store::Union{String, Nothing}
@@ -20,11 +20,16 @@ include("servers.jl")
 
 function browzarr(; port::Int = 3000, open::Union{Bool, Nothing} = nothing, store::Union{String, Nothing} = nothing)
     notebook = in_notebook()
-    open_browser_flag = isnothing(open) ? !notebook : open
+    vscode = in_vscode()
+    open_browser_flag = isnothing(open) ? !(notebook || vscode) : open
+
     srv = start_browzarr(; port, store)
 
     if notebook && !open_browser_flag
         display("text/html", browzarr_iframe(srv))
+    elseif vscode && !open_browser_flag
+        wait_for_server(srv.host, srv.port)
+        _display_vscode(srv)
     elseif open_browser_flag
         wait_for_server(srv.host, srv.port)
         open_browser(srv)
