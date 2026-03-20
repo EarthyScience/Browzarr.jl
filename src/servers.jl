@@ -4,7 +4,6 @@ function start_browzarr(; port::Int = 3000, host::String = "127.0.0.1", store::U
         dir = joinpath(artifact"Browzarr", "app")
         handler = static_handler(dir, store)
         server = HTTP.serve!(handler, host, port)
-        task = @async HTTP.serve!(server, handler, host, port)
 
         srv = BrowzarrServer(server, host, port, store, detect_format(store))
         SERVERS[port] = srv
