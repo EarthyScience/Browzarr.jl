@@ -25,7 +25,7 @@
 Browzarr.jl is not yet registered. Install the main branch via:
 
 ```julia
-using Pkg; Pkg.add("https://github.com/EarthyScience/Browzarr.jl")
+using Pkg; Pkg.add(url="https://github.com/EarthyScience/Browzarr.jl", rev="main")
 ```
 
 ### Usage
