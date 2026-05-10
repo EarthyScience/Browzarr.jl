@@ -41,13 +41,13 @@ browzarr(; store="/path/to/file.nc")                      # local file
 browzarr(; store="https://s3.bucket.de:67/misc/out.zarr") # remote Zarr store
 ```
 
-and close all ports
+To stop all running servers:
 
 ```julia
 Browzarr.stop_all!()
 ```
 
-or a specific port
+To stop a server on a specific port:
 
 ```julia
 Browzarr.stop!(3000)
