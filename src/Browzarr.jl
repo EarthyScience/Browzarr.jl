@@ -1,7 +1,7 @@
 module Browzarr
 export browzarr
 
-using Pkg.Artifacts
+using LazyArtifacts
 using HTTP
 
 struct BrowzarrServer

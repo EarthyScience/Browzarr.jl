@@ -1,7 +1,8 @@
 function start_browzarr(; port::Int = 3000, host::String = "127.0.0.1", store::Union{String, Nothing} = nothing)
     return lock(SERVERS_LOCK) do
         haskey(SERVERS, port) && error("Server already running on port $port")
-        dir = joinpath(artifact"Browzarr", "app")
+        # The `browzarr` npm tarball unpacks under `package/` and the static build lives in `out/`.
+        dir = joinpath(artifact"Browzarr", "package", "out")
         handler = static_handler(dir, store)
         server = HTTP.serve!(handler, host, port)
 
