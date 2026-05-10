@@ -58,8 +58,7 @@ function gen_remote_artifact_toml()
     println()
     println("  [[", name, ".download]]")
     println("  url = \"", tarball, "\"")
-    println("  sha256 = \"", sha256_hex, "\"")
+    return println("  sha256 = \"", sha256_hex, "\"")
 end
 
 gen_remote_artifact_toml()
-
