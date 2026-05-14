@@ -17,7 +17,8 @@ function start_browzarr(;
             error("Server already running on port $port")
         end
 
-        dir = joinpath(artifact"Browzarr", "app")
+        # The `browzarr` npm tarball unpacks under `package/` and the static build lives in `out/`.
+        dir = joinpath(artifact"Browzarr", "package", "out")
         handler = static_handler(dir, store)
         server = HTTP.serve!(handler, host, port)
 

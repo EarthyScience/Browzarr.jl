@@ -1,2 +1,7 @@
 [Browzarr]
-git-tree-sha1 = "d2a6d8044167111ce4885df29c40741a7a5abc95"
+git-tree-sha1 = "dfa9d3151971ab9a4c9869e439e69d8e7a8e1177"
+lazy = true
+
+  [[Browzarr.download]]
+  url = "https://registry.npmjs.org/browzarr/-/browzarr-0.6.1.tgz"
+  sha256 = "c6812ae8158e0e9d919fc75a8e4fee92f70866e39f50a950cf95dcd2aa614504"
