@@ -17,13 +17,18 @@ function serve_zarr(path::String; host::String = "127.0.0.1")
     function handler(req::HTTP.Request)
         req.method == "OPTIONS" && return HTTP.Response(200, CORS_HEADERS)
 
-        rel = lstrip(req.target, '/')
-        fpath = joinpath(path, rel)
+        target_path = HTTP.URIs.unescapeuri(HTTP.URIs.URI(req.target).path)
+        rel = lstrip(target_path, '/')
+        fpath = abspath(joinpath(path, rel))
+
+        if !startswith(fpath, abspath(path))
+            return HTTP.Response(403, CORS_HEADERS, "Forbidden")
+        end
 
         isfile(fpath) || return HTTP.Response(404, CORS_HEADERS, "Not found")
 
         filesize = stat(fpath).size
-        mime = endswith(fpath, ".json") || occursin(".z", basename(fpath)) ?
+        mime = endswith(fpath, ".json") || startswith(basename(fpath), ".z") ?
             "application/json" : "application/octet-stream"
         headers = [
             CORS_HEADERS..., "Content-Type" => mime,
@@ -36,6 +41,10 @@ function serve_zarr(path::String; host::String = "127.0.0.1")
             if !isnothing(m)
                 start = parse(Int, m[1])
                 stop = isempty(m[2]) ? filesize - 1 : parse(Int, m[2])
+                if start >= filesize || stop < start
+                    return HTTP.Response(416, [CORS_HEADERS..., "Content-Range" => "bytes */$filesize"])
+                end
+                stop = min(stop, filesize - 1)
                 len = stop - start + 1
                 body = open(fpath, "r") do io
                     seek(io, start)
@@ -51,7 +60,7 @@ function serve_zarr(path::String; host::String = "127.0.0.1")
             end
         end
 
-        return HTTP.Response(200, headers, read(fpath))
+        return HTTP.Response(200, headers, open(fpath, "r"))
     end
 
     @async HTTP.serve(handler, host, port, server = server)
