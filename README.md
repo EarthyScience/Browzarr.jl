@@ -22,8 +22,10 @@
 
 ### Installation
 
+Browzarr.jl is not yet registered. Install the main branch via:
+
 ```julia
-using Pkg; Pkg.add("Browzarr")
+using Pkg; Pkg.add(url="https://github.com/EarthyScience/Browzarr.jl", rev="main")
 ```
 
 ### Usage
@@ -37,4 +39,16 @@ browzarr()                                                # default (port 8080)
 browzarr(; port=3000)                                     # custom port
 browzarr(; store="/path/to/file.nc")                      # local file
 browzarr(; store="https://s3.bucket.de:67/misc/out.zarr") # remote Zarr store
+```
+
+To stop all running servers:
+
+```julia
+Browzarr.stop_all!()
+```
+
+To stop a server on a specific port:
+
+```julia
+Browzarr.stop!(3000)
 ```
