@@ -1,17 +1,21 @@
-function start_browzarr(; port::Int = 3000, host::String = "127.0.0.1", store::Union{String, Nothing} = nothing)
+function start_browzarr(; port::Union{Integer, Nothing} = nothing, host::String = "127.0.0.1", store::Union{String, Nothing} = nothing)
     return lock(SERVERS_LOCK) do
-        haskey(SERVERS, port) && error("Server already running on port $port")
+        # Bind to requested port or let OS pick a free one
+        tcp = isnothing(port) ? Sockets.listen(0) : Sockets.listen(parse(IPAddr, host), port)
+        _, p = getsockname(tcp)
+
+        haskey(SERVERS, p) && error("Server already running on port $p")
         # The `browzarr` npm tarball unpacks under `package/` and the static build lives in `out/`.
         dir = joinpath(artifact"Browzarr", "package", "out")
         handler = static_handler(dir, store)
-        server = HTTP.serve!(handler, host, port)
+        server = HTTP.serve!(handler, tcp)
 
-        srv = BrowzarrServer(server, host, port, store, detect_format(store))
-        SERVERS[port] = srv
+        srv = BrowzarrServer(server, host, p, store, detect_format(store))
+        SERVERS[p] = srv
 
         atexit(
             () -> lock(SERVERS_LOCK) do
-                port in keys(SERVERS) && stop!(SERVERS[port])
+                p in keys(SERVERS) && stop!(SERVERS[p])
             end
         )
 
@@ -29,7 +33,7 @@ function stop!(srv::BrowzarrServer)
     return @info "Browzarr server stopped" port = srv.port
 end
 
-function stop!(port::Int)
+function stop!(port::Integer)
     srv = lock(SERVERS_LOCK) do
         get(SERVERS, port, nothing)
     end
@@ -60,7 +64,7 @@ running_servers() = lock(SERVERS_LOCK) do
     collect(values(SERVERS))
 end
 
-get_server(port::Int) = lock(SERVERS_LOCK) do
+get_server(port::Integer) = lock(SERVERS_LOCK) do
     get(SERVERS, port, nothing)
 end
 

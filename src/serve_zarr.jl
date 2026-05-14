@@ -68,7 +68,7 @@ end
 
 Stop the Zarr HTTP server running on `port`.
 """
-function stop_zarr!(port::Int)
+function stop_zarr!(port::Integer)
     return lock(SERVERS_LOCK) do
         srv = get(ZARR_SERVERS, port, nothing)
         srv === nothing && return

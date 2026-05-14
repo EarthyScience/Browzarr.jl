@@ -21,7 +21,7 @@ include("mimeTypes.jl")
 include("serve_zarr.jl")
 include("servers.jl")
 
-function browzarr(; port::Int = 3000, open::Union{Bool, Nothing} = nothing, store::Union{String, Nothing} = nothing)
+function browzarr(; port::Union{Integer, Nothing} = nothing, open::Union{Bool, Nothing} = nothing, store::Union{String, Nothing} = nothing)
 
     if !isnothing(store) && isdir(store)
         store = serve_zarr(store)
