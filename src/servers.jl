@@ -8,7 +8,7 @@ function start_browzarr(;
 
         # If autoport is enabled, keep incrementing the port number until we find a free one
         while autoport && haskey(SERVERS, port)
-            warn("Port $port is already in use, trying next port...")
+            @warn "Port $port is already in use, trying next port..."
             port += 1
         end
 
