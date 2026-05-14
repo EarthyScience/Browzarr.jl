@@ -14,16 +14,23 @@ end
 
 const SERVERS = Dict{Int, BrowzarrServer}()
 const SERVERS_LOCK = ReentrantLock()
+const DEFAULT_PORT = 3000
+const DEFAULT_AUTOPORT = true   # automatically pick next port if current in use
 
 include("mimeTypes.jl")
 include("servers.jl")
 
-function browzarr(; port::Int = 3000, open::Union{Bool, Nothing} = nothing, store::Union{String, Nothing} = nothing)
+function browzarr(;
+    port::Integer = DEFAULT_PORT,
+    autoport::Bool = DEFAULT_AUTOPORT,
+    open::Union{Bool, Nothing} = nothing,
+    store::Union{String, Nothing} = nothing
+)
     notebook = in_notebook()
     vscode = in_vscode()
     open_browser_flag = isnothing(open) ? !(notebook || vscode) : open
 
-    srv = start_browzarr(; port, store)
+    srv = start_browzarr(; port, autoport, store)
 
     if notebook && !open_browser_flag
         display("text/html", browzarr_iframe(srv))

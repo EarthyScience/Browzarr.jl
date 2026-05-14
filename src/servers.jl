@@ -1,6 +1,22 @@
-function start_browzarr(; port::Int = 3000, host::String = "127.0.0.1", store::Union{String, Nothing} = nothing)
+function start_browzarr(;
+    port::Integer = DEFAULT_PORT,
+    autoport::Bool = DEFAULT_AUTOPORT,
+    host::String = "127.0.0.1",
+    store::Union{String, Nothing} = nothing
+)
     return lock(SERVERS_LOCK) do
-        haskey(SERVERS, port) && error("Server already running on port $port")
+
+        # If autoport is enabled, keep incrementing the port number until we find a free one
+        while autoport && haskey(SERVERS, port)
+            warn("Port $port is already in use, trying next port...")
+            port += 1
+        end
+
+        # If autoport is disabled and the port is already in use, throw an error
+        if !autoport && haskey(SERVERS, port)
+            error("Server already running on port $port")
+        end
+
         dir = joinpath(artifact"Browzarr", "app")
         handler = static_handler(dir, store)
         server = HTTP.serve!(handler, host, port)
@@ -28,7 +44,7 @@ function stop!(srv::BrowzarrServer)
     return @info "Browzarr server stopped" port = srv.port
 end
 
-function stop!(port::Int)
+function stop!(port::Integer)
     srv = lock(SERVERS_LOCK) do
         get(SERVERS, port, nothing)
     end
@@ -59,7 +75,7 @@ running_servers() = lock(SERVERS_LOCK) do
     collect(values(SERVERS))
 end
 
-get_server(port::Int) = lock(SERVERS_LOCK) do
+get_server(port::Integer) = lock(SERVERS_LOCK) do
     get(SERVERS, port, nothing)
 end
 
