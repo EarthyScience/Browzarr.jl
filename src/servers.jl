@@ -88,8 +88,8 @@ end
 function server_url(srv::BrowzarrServer)
     base = "http://$(srv.host):$(srv.port)"
     isnothing(srv.store) && return base
-    encoded = HTTP.URIs.escapeuri(srv.store)
-    url = "$base/?store=$encoded"
+    store = startswith(srv.store, "http") ? srv.store : HTTP.URIs.escapeuri(srv.store)
+    url = "$base/?store=$store"
     !isnothing(srv.format) && (url *= "&format=$(srv.format)")
     return url
 end
@@ -149,5 +149,22 @@ function wait_for_server(host, port; timeout = 10.0)
         end
     end
     @warn "Server on $host:$port did not become ready in time"
+    return false
+end
+
+function wait_for_server(url::String; timeout = 10.0)
+    uri = HTTP.URIs.URI(url)
+    host = uri.host
+    port = parse(Int, uri.port)
+    deadline = time() + timeout
+    while time() < deadline
+        try
+            HTTP.get("http://$host:$port"; readtimeout = 1, retry = false, status_exception = false)
+            return true
+        catch
+            sleep(0.05)
+        end
+    end
+    @warn "Server did not become ready in time" url
     return false
 end

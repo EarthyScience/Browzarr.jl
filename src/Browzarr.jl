@@ -3,6 +3,7 @@ export browzarr
 
 using LazyArtifacts
 using HTTP
+using Zarr, Sockets
 
 struct BrowzarrServer
     server::HTTP.Servers.Server
@@ -13,12 +14,20 @@ struct BrowzarrServer
 end
 
 const SERVERS = Dict{Int, BrowzarrServer}()
+const ZARR_SERVERS = Dict{Int, Sockets.TCPServer}()
 const SERVERS_LOCK = ReentrantLock()
 
 include("mimeTypes.jl")
+include("serve_zarr.jl")
 include("servers.jl")
 
 function browzarr(; port::Int = 3000, open::Union{Bool, Nothing} = nothing, store::Union{String, Nothing} = nothing)
+
+    if !isnothing(store) && isdir(store)
+        store = serve_zarr(store)
+        wait_for_server(store)
+    end
+
     notebook = in_notebook()
     vscode = in_vscode()
     open_browser_flag = isnothing(open) ? !(notebook || vscode) : open
