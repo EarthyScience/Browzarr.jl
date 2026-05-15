@@ -159,7 +159,7 @@ end
 function wait_for_server(url::String; timeout = 10.0)
     uri = HTTP.URIs.URI(url)
     host = uri.host
-    port = parse(Int, uri.port)
+    port = isempty(uri.port) ? (uri.scheme == "https" ? 443 : 80) : parse(Int, uri.port)
     deadline = time() + timeout
     while time() < deadline
         try

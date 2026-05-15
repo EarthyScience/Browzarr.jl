@@ -39,8 +39,8 @@ function serve_zarr(path::String; host::String = "127.0.0.1")
         if !isempty(range_hdr)
             m = match(r"bytes=(\d+)-(\d*)", range_hdr)
             if !isnothing(m)
-                start = parse(Int, m[1])
-                stop = isempty(m[2]) ? filesize - 1 : parse(Int, m[2])
+                start = parse(Int64, m[1])
+                stop = isempty(m[2]) ? filesize - 1 : parse(Int64, m[2])
                 if start >= filesize || stop < start
                     return HTTP.Response(416, [CORS_HEADERS..., "Content-Range" => "bytes */$filesize"])
                 end
