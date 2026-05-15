@@ -1,7 +1,7 @@
 function start_browzarr(; port::Union{Integer, Nothing} = nothing, host::String = "127.0.0.1", store::Union{String, Nothing} = nothing)
     return lock(SERVERS_LOCK) do
         # Bind to requested port or let OS pick a free one
-        tcp = isnothing(port) ? Sockets.listen(0) : Sockets.listen(parse(IPAddr, host), port)
+        tcp = Sockets.listen(Sockets.getaddrinfo(host), isnothing(port) ? 0 : port)
         _, p = getsockname(tcp)
 
         haskey(SERVERS, p) && error("Server already running on port $p")

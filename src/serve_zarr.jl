@@ -5,7 +5,7 @@ Spin up a local HTTP server exposing a Zarr store at `path`.
 Returns the URL string to pass to `browzarr(; store=...)`.
 """
 function serve_zarr(path::String; host::String = "127.0.0.1")
-    server = Sockets.listen(0) # OS picks a free port
+    server = Sockets.listen(Sockets.getaddrinfo(host), 0) # OS picks a free port
     _, port = getsockname(server)
 
     CORS_HEADERS = [
