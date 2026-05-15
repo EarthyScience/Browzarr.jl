@@ -21,7 +21,8 @@ function serve_zarr(path::String; host::String = "127.0.0.1")
         rel = lstrip(target_path, '/')
         fpath = abspath(joinpath(path, rel))
 
-        if !startswith(fpath, abspath(path))
+        base = joinpath(abspath(path), "")
+        if !startswith(fpath, base)
             return HTTP.Response(403, CORS_HEADERS, "Forbidden")
         end
 
@@ -63,7 +64,7 @@ function serve_zarr(path::String; host::String = "127.0.0.1")
         return HTTP.Response(200, headers, open(fpath, "r"))
     end
 
-    @async HTTP.serve(handler, host, port, server = server)
+    errormonitor(@async HTTP.serve(handler, host, port, server = server))
     lock(SERVERS_LOCK) do
         ZARR_SERVERS[port] = server
     end

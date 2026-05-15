@@ -163,7 +163,7 @@ function wait_for_server(url::String; timeout = 10.0)
     deadline = time() + timeout
     while time() < deadline
         try
-            HTTP.get("http://$host:$port"; readtimeout = 1, retry = false, status_exception = false)
+            HTTP.get(url; readtimeout = 1, retry = false, status_exception = false)
             return true
         catch
             sleep(0.05)

@@ -25,7 +25,7 @@ function browzarr(; port::Union{Integer, Nothing} = nothing, open::Union{Bool, N
 
     if !isnothing(store) && isdir(store)
         store = serve_zarr(store)
-        wait_for_server(store)
+        wait_for_server(store) || error("Zarr server failed to start at $store")
     end
 
     notebook = in_notebook()
@@ -37,10 +37,10 @@ function browzarr(; port::Union{Integer, Nothing} = nothing, open::Union{Bool, N
     if notebook && !open_browser_flag
         display("text/html", browzarr_iframe(srv))
     elseif vscode && !open_browser_flag
-        wait_for_server(srv.host, srv.port)
+        wait_for_server(srv.host, srv.port) || error("Browzarr server failed to start at $(srv.host):$(srv.port)")
         _display_vscode(srv)
     elseif open_browser_flag
-        wait_for_server(srv.host, srv.port)
+        wait_for_server(srv.host, srv.port) || error("Browzarr server failed to start at $(srv.host):$(srv.port)")
         open_browser(srv)
         @info "Browzarr opened in browser" url = server_url(srv)
     end
