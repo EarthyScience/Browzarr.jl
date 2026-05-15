@@ -27,6 +27,11 @@ function ext_to_mimetype(ext)
     return get(known_mimetypes, ext, "application/octet-stream")
 end
 
+"""
+   file_handler(store::Union{String, Nothing}, req)
+
+Serve a NetCDF file from `store` in response to an HTTP request `req`, supporting range requests for efficient streaming.
+"""
 function file_handler(store::Union{String, Nothing}, req)
     isnothing(store) && return HTTP.Response(400, "No store configured")
     uri = HTTP.URIs.URI(req.target)
@@ -70,6 +75,11 @@ function file_handler(store::Union{String, Nothing}, req)
     return HTTP.Response(200, headers; body = open(path, "r"))
 end
 
+"""
+    static_handler(dir::String, store::Union{String, Nothing})
+
+Create an HTTP handler that serves static files from `dir`, and uses `file_handler` to serve the NetCDF file specified by `store` when requests are made to the `/file` endpoint.
+"""
 function static_handler(dir::String, store::Union{String, Nothing})
     return function (req)
         startswith(req.target, "/file") && return file_handler(store, req)

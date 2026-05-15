@@ -35,9 +35,10 @@ Launch with a local file, a remote store, or no arguments to get started:
 ```julia
 using Browzarr
 
-browzarr()                                                # default (port 8080)
+browzarr()                                                # default (any available port)
 browzarr(; port=3000)                                     # custom port
-browzarr(; store="/path/to/file.nc")                      # local file
+browzarr(; store="/absolute/path/to/file.nc")             # local file
+browzarr(; store="/absolute/path/to/zarr_file.zarr")      # local zarr directory
 browzarr(; store="https://s3.bucket.de:67/misc/out.zarr") # remote Zarr store
 ```
 
@@ -51,4 +52,21 @@ To stop a server on a specific port:
 
 ```julia
 Browzarr.stop!(3000)
+```
+
+### Setup Local Zarr Server
+
+You can pass directly the path to your local `zarr` directory
+```julia
+using Browzarr
+browzarr(; store="/absolute/path/to/zarr_file.zarr")      # local zarr directory
+```
+
+or setup the server in advance and then pass that
+
+```julia
+using Browzarr
+store = Browzarr.serve_zarr("/absolute/path/to/zarr_file.zarr")
+# now launch it!
+browzarr(; store=store)
 ```

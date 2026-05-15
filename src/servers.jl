@@ -1,17 +1,21 @@
-function start_browzarr(; port::Int = 3000, host::String = "127.0.0.1", store::Union{String, Nothing} = nothing)
+function start_browzarr(; port::Union{Integer, Nothing} = nothing, host::String = "127.0.0.1", store::Union{String, Nothing} = nothing)
     return lock(SERVERS_LOCK) do
-        haskey(SERVERS, port) && error("Server already running on port $port")
+        # Bind to requested port or let OS pick a free one
+        tcp = Sockets.listen(Sockets.getaddrinfo(host), isnothing(port) ? 0 : port)
+        _, p = getsockname(tcp)
+
+        haskey(SERVERS, p) && error("Server already running on port $p")
         # The `browzarr` npm tarball unpacks under `package/` and the static build lives in `out/`.
         dir = joinpath(artifact"Browzarr", "package", "out")
         handler = static_handler(dir, store)
-        server = HTTP.serve!(handler, host, port)
+        server = HTTP.serve!(handler, tcp)
 
-        srv = BrowzarrServer(server, host, port, store, detect_format(store))
-        SERVERS[port] = srv
+        srv = BrowzarrServer(server, host, p, store, detect_format(store))
+        SERVERS[p] = srv
 
         atexit(
             () -> lock(SERVERS_LOCK) do
-                port in keys(SERVERS) && stop!(SERVERS[port])
+                p in keys(SERVERS) && stop!(SERVERS[p])
             end
         )
 
@@ -29,7 +33,7 @@ function stop!(srv::BrowzarrServer)
     return @info "Browzarr server stopped" port = srv.port
 end
 
-function stop!(port::Int)
+function stop!(port::Integer)
     srv = lock(SERVERS_LOCK) do
         get(SERVERS, port, nothing)
     end
@@ -60,7 +64,7 @@ running_servers() = lock(SERVERS_LOCK) do
     collect(values(SERVERS))
 end
 
-get_server(port::Int) = lock(SERVERS_LOCK) do
+get_server(port::Integer) = lock(SERVERS_LOCK) do
     get(SERVERS, port, nothing)
 end
 
@@ -88,8 +92,8 @@ end
 function server_url(srv::BrowzarrServer)
     base = "http://$(srv.host):$(srv.port)"
     isnothing(srv.store) && return base
-    encoded = HTTP.URIs.escapeuri(srv.store)
-    url = "$base/?store=$encoded"
+    store = startswith(srv.store, "http") ? srv.store : HTTP.URIs.escapeuri(srv.store)
+    url = "$base/?store=$store"
     !isnothing(srv.format) && (url *= "&format=$(srv.format)")
     return url
 end
@@ -149,5 +153,22 @@ function wait_for_server(host, port; timeout = 10.0)
         end
     end
     @warn "Server on $host:$port did not become ready in time"
+    return false
+end
+
+function wait_for_server(url::String; timeout = 10.0)
+    uri = HTTP.URIs.URI(url)
+    host = uri.host
+    port = isempty(uri.port) ? (uri.scheme == "https" ? 443 : 80) : parse(Int, uri.port)
+    deadline = time() + timeout
+    while time() < deadline
+        try
+            HTTP.get(url; readtimeout = 1, retry = false, status_exception = false)
+            return true
+        catch
+            sleep(0.05)
+        end
+    end
+    @warn "Server did not become ready in time" url
     return false
 end
