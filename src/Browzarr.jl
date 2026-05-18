@@ -4,6 +4,7 @@ export browzarr
 using LazyArtifacts
 using HTTP
 using Zarr, Sockets
+using Zarr: DirectoryStore
 
 struct BrowzarrServer
     server::HTTP.Servers.Server
