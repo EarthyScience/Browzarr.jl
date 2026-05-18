@@ -2,7 +2,6 @@ using Browzarr
 using Test
 using HTTP
 using Zarr
-using JSON
 
 @testset "Browzarr server lifecycle" begin
     server = browzarr(; open = false)
@@ -51,70 +50,14 @@ end
     end
 end
 
-@testset "serve_zarr skips v2 metadata for v3 stores" begin
+@testset "serve_zarr does not synthesize .zmetadata when zarr.json exists" begin
     mktempdir() do dir
-        write(
-            joinpath(dir, "zarr.json"),
-            """{"zarr_format":3,"node_type":"group","attributes":{}}""",
-        )
+        write(joinpath(dir, "zarr.json"), "{}")
         url = serve_zarr(dir)
         port = parse(Int, HTTP.URIs.URI(url).port)
         try
             meta = HTTP.get("$url/.zmetadata"; retry = false, status_exception = false)
             @test meta.status == 404
-        finally
-            stop_zarr!(port)
-        end
-    end
-end
-
-@testset "serve_zarr unconsolidated v3 store" begin
-    mktempdir() do dir
-        store = DirectoryStore(dir)
-        g = zgroup(store, "", Zarr.ZarrFormat(3))
-        zcreate(g, "temp", Float32, (4, 4))
-
-        root = JSON.parse(read(joinpath(dir, "zarr.json"), String))
-        @test get(root, "consolidated_metadata", nothing) === nothing
-
-        url = serve_zarr(dir)
-        port = parse(Int, HTTP.URIs.URI(url).port)
-        try
-            resp = HTTP.get("$url/zarr.json"; retry = false)
-            @test resp.status == 200
-            served = JSON.parse(String(resp.body))
-            cons = served["consolidated_metadata"]
-            @test cons["kind"] == "inline"
-            @test haskey(cons["metadata"], "temp")
-            @test cons["metadata"]["temp"]["node_type"] == "array"
-        finally
-            stop_zarr!(port)
-        end
-    end
-end
-
-@testset "serve_zarr preserves v3 inline consolidation" begin
-    mktempdir() do dir
-        write(
-            joinpath(dir, "zarr.json"),
-            """{
-              "zarr_format": 3,
-              "node_type": "group",
-              "consolidated_metadata": {
-                "kind": "inline",
-                "must_understand": false,
-                "metadata": {"existing": {"node_type": "array", "zarr_format": 3}}
-              }
-            }""",
-        )
-        url = serve_zarr(dir)
-        port = parse(Int, HTTP.URIs.URI(url).port)
-        try
-            resp = HTTP.get("$url/zarr.json"; retry = false)
-            served = JSON.parse(String(resp.body))
-            @test served["consolidated_metadata"]["metadata"] == Dict(
-                "existing" => Dict("node_type" => "array", "zarr_format" => 3),
-            )
         finally
             stop_zarr!(port)
         end
