@@ -17,7 +17,7 @@ function _synthetic_zmetadata(path::String)
     is_v2 = isfile(joinpath(path, ".zgroup")) || isfile(joinpath(path, ".zarray"))
     is_v2 || return nothing
     store = DirectoryStore(path)
-    d = Dict{String,Any}()
+    d = Dict{String, Any}()
     Zarr.consolidate_metadata(store, d, "")
     buf = IOBuffer()
     Zarr.JSON.print(buf, Dict("metadata" => d, "zarr_consolidated_format" => 1), 4)
@@ -62,9 +62,13 @@ function serve_zarr(path::String; host::String = "127.0.0.1")
         end
 
         if rel == ".zmetadata" && !isnothing(synthetic_zmetadata)
-            headers = [CORS_HEADERS..., "Content-Type" => "application/json"]
+            headers = [
+                CORS_HEADERS...,
+                "Content-Type" => "application/json",
+                "Content-Length" => string(length(synthetic_zmetadata)),
+            ]
             req.method == "HEAD" && return HTTP.Response(200, headers)
-            return HTTP.Response(200, headers, synthetic_zmetadata)
+            return HTTP.Response(200, headers; body = synthetic_zmetadata)
         end
 
         isfile(fpath) || return HTTP.Response(404, CORS_HEADERS, "Not found")
