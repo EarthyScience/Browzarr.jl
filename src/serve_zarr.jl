@@ -39,9 +39,6 @@ function serve_zarr(path::String; host::String = "127.0.0.1")
     !isnothing(synthetic_zmetadata) &&
         @info "Serving synthesized .zmetadata for unconsolidated Zarr v2 store" path
 
-    server = Sockets.listen(Sockets.getaddrinfo(host), 0) # OS picks a free port
-    _, port = getsockname(server)
-
     CORS_HEADERS = [
         "Access-Control-Allow-Origin" => "*",
         "Access-Control-Allow-Methods" => "GET, OPTIONS",
@@ -110,8 +107,12 @@ function serve_zarr(path::String; host::String = "127.0.0.1")
 
         return HTTP.Response(200, headers, open(fpath, "r"))
     end
+    
+    # HTTP.jl 2.x: non-blocking server
+    server = HTTP.serve!(handler, host, 0)
+    # Extract the OS-assigned ephemeral port
+    port = HTTP.port(server)
 
-    errormonitor(@async HTTP.serve(handler, host, port, server = server))
     lock(SERVERS_LOCK) do
         ZARR_SERVERS[port] = server
     end

@@ -3,11 +3,11 @@ export browzarr
 
 using LazyArtifacts
 using HTTP
-using Zarr, Sockets
+using Zarr
 using Zarr: DirectoryStore
 
 struct BrowzarrServer
-    server::HTTP.Servers.Server
+    server::HTTP.Server
     host::String
     port::Int
     store::Union{String, Nothing}
@@ -15,7 +15,7 @@ struct BrowzarrServer
 end
 
 const SERVERS = Dict{Int, BrowzarrServer}()
-const ZARR_SERVERS = Dict{Int, Sockets.TCPServer}()
+const ZARR_SERVERS = Dict{Int, HTTP.Server}()
 const SERVERS_LOCK = ReentrantLock()
 
 include("mimeTypes.jl")

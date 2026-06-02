@@ -1,14 +1,17 @@
-function start_browzarr(; port::Union{Integer, Nothing} = nothing, host::String = "127.0.0.1", store::Union{String, Nothing} = nothing)
+function start_browzarr(; port::Union{Integer, Nothing} = nothing,
+                          host::String = "127.0.0.1",
+                          store::Union{String, Nothing} = nothing)
     return lock(SERVERS_LOCK) do
-        # Bind to requested port or let OS pick a free one
-        tcp = Sockets.listen(Sockets.getaddrinfo(host), isnothing(port) ? 0 : port)
-        _, p = getsockname(tcp)
+        dir     = joinpath(artifact"Browzarr", "package", "out")
+        handler = static_handler(dir, store)
+
+        server = HTTP.serve!(
+            handler, host, isnothing(port) ? 0 : port;
+            listenany = isnothing(port),
+        )
+        p = HTTP.port(server)
 
         haskey(SERVERS, p) && error("Server already running on port $p")
-        # The `browzarr` npm tarball unpacks under `package/` and the static build lives in `out/`.
-        dir = joinpath(artifact"Browzarr", "package", "out")
-        handler = static_handler(dir, store)
-        server = HTTP.serve!(handler, tcp)
 
         srv = BrowzarrServer(server, host, p, store, detect_format(store))
         SERVERS[p] = srv
@@ -143,10 +146,11 @@ function _display_vscode(srv::BrowzarrServer)
 end
 
 function wait_for_server(host, port; timeout = 10.0)
+    url = "http://$host:$port"
     deadline = time() + timeout
     while time() < deadline
         try
-            close(HTTP.connect(host, port))
+            HTTP.get(url; request_timeout = 1, retry = false, status_exception = false)
             return true
         catch
             sleep(0.05)
@@ -163,7 +167,7 @@ function wait_for_server(url::String; timeout = 10.0)
     deadline = time() + timeout
     while time() < deadline
         try
-            HTTP.get(url; readtimeout = 1, retry = false, status_exception = false)
+            HTTP.get(url; request_timeout = 1, retry = false, status_exception = false)
             return true
         catch
             sleep(0.05)
