@@ -15,18 +15,28 @@ struct BrowzarrServer
     format::Union{String, Nothing}
 end
 
+struct ZarrServer
+    server::Server
+    host::String
+    port::Int
+    path::String
+end
+
 const SERVERS = Dict{Int, BrowzarrServer}()
-const ZARR_SERVERS = Dict{Int, Server}()
+const ZARR_SERVERS = Dict{Int, ZarrServer}()
 const SERVERS_LOCK = ReentrantLock()
 
 include("mimeTypes.jl")
 include("serve_zarr.jl")
 include("servers.jl")
 
-function browzarr(; port::Union{Integer, Nothing} = nothing, open::Union{Bool, Nothing} = nothing, store::Union{String, Nothing} = nothing)
+function browzarr(; port::Union{Integer, Nothing} = nothing, open::Union{Bool, Nothing} = nothing, store::Union{String, ZarrServer, Nothing} = nothing)
 
-    if !isnothing(store) && isdir(store)
-        store = serve_zarr(store)
+    if store isa ZarrServer
+        store = "http://$(store.host):$(store.port)"
+    elseif store isa String && isdir(store)
+        zarr_srv = serve_zarr(store)
+        store = "http://$(zarr_srv.host):$(zarr_srv.port)"
         wait_for_server(store) || error("Zarr server failed to start at $store")
     end
 
@@ -65,6 +75,20 @@ function Base.show(io::IO, srv::BrowzarrServer)
     print(io, key("port"), "=", num(srv.port), ", ")
     print(io, key("store"), "=", sym(srv.store), ", ")
     print(io, key("format"), "=", sym(srv.format), ")")
+end
+
+function Base.show(io::IO, srv::ZarrServer)
+    color = get(io, :color, false)
+    styled(c, s) = color ? "\e[$(c)m$(s)\e[0m" : string(s)
+    key(s)  = styled("1;36", s)      # bold cyan
+    str(s)  = styled("32", s)        # green
+    num(s)  = styled("33", s)        # yellow
+    sym(s)  = styled("38;5;208", s)  # orange
+    bold(s) = styled("1", s)
+    print(io, bold("ZarrServer"), "(")
+    print(io, key("host"), "=", str(srv.host), ", ")
+    print(io, key("port"), "=", num(srv.port), ", ")
+    print(io, key("path"), "=", sym(srv.path), ")")
 end
 
 end

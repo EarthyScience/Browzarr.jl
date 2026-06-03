@@ -112,13 +112,19 @@ function serve_zarr(path::String; host::String = "127.0.0.1")
     server = HTTP.serve!(handler, host, 0)
     # Extract the OS-assigned ephemeral port
     port = HTTP.port(server)
+    srv = ZarrServer(server, host, port, path)
 
     lock(SERVERS_LOCK) do
-        ZARR_SERVERS[port] = server
+        ZARR_SERVERS[port] = srv
     end
     atexit(() -> stop_zarr!(port))
     @info "Zarr HTTP server started" url = "http://$host:$port"
-    return "http://$host:$port"
+    return srv
+end
+
+function stop_zarr!(srv::ZarrServer)
+    HTTP.forceclose(srv.server)
+    return @info "Zarr server stopped" port = srv.port
 end
 
 """
@@ -130,8 +136,36 @@ function stop_zarr!(port::Integer)
     return lock(SERVERS_LOCK) do
         srv = get(ZARR_SERVERS, port, nothing)
         srv === nothing && return
-        forceclose(srv)
+        stop_zarr!(srv)
         pop!(ZARR_SERVERS, port, nothing)
-        @info "Zarr server stopped" port
     end
+end
+
+"""
+    stop_all_zarr!()
+
+Stop all Zarr HTTP servers.
+"""
+function stop_all_zarr!()
+    servers = lock(SERVERS_LOCK) do
+        s = collect(values(ZARR_SERVERS))
+        empty!(ZARR_SERVERS)
+        s
+    end
+    for srv in servers
+        try
+            stop_zarr!(srv)
+        catch e
+            @warn "Failed to stop Zarr server" port = srv.port exception = e
+        end
+    end
+    return @info "All Zarr servers stopped"
+end
+
+running_zarr_servers() = lock(SERVERS_LOCK) do
+    collect(values(ZARR_SERVERS))
+end
+
+get_zarr_server(port::Integer) = lock(SERVERS_LOCK) do
+    get(ZARR_SERVERS, port, nothing)
 end
