@@ -1,8 +1,6 @@
-function start_browzarr(; port::Union{Integer, Nothing} = nothing,
-                          host::String = "127.0.0.1",
-                          store::Union{String, Nothing} = nothing)
+function start_browzarr(; port::Union{Integer, Nothing} = nothing, host::String = "127.0.0.1", store::Union{String, Nothing} = nothing)
     return lock(SERVERS_LOCK) do
-        dir     = joinpath(artifact"Browzarr", "package", "out")
+        dir = joinpath(artifact"Browzarr", "package", "out")
         handler = static_handler(dir, store)
 
         server = HTTP.serve!(
@@ -32,7 +30,7 @@ function detect_format(store::Union{String, Nothing})
 end
 
 function stop!(srv::BrowzarrServer)
-    close(srv.server)
+    forceclose(srv.server)
     return @info "Browzarr server stopped" port = srv.port
 end
 
@@ -95,7 +93,7 @@ end
 function server_url(srv::BrowzarrServer)
     base = "http://$(srv.host):$(srv.port)"
     isnothing(srv.store) && return base
-    store = startswith(srv.store, "http") ? srv.store : HTTP.URIs.escapeuri(srv.store)
+    store = startswith(srv.store, "http") ? srv.store : HTTP.escapeuri(srv.store)
     url = "$base/?store=$store"
     !isnothing(srv.format) && (url *= "&format=$(srv.format)")
     return url
@@ -161,7 +159,7 @@ function wait_for_server(host, port; timeout = 10.0)
 end
 
 function wait_for_server(url::String; timeout = 10.0)
-    uri = HTTP.URIs.URI(url)
+    uri = HTTP.URI(url)
     host = uri.host
     port = isempty(uri.port) ? (uri.scheme == "https" ? 443 : 80) : parse(Int, uri.port)
     deadline = time() + timeout

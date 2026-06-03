@@ -3,11 +3,12 @@ export browzarr
 
 using LazyArtifacts
 using HTTP
+using HTTP: Server, forceclose
 using Zarr
 using Zarr: DirectoryStore
 
 struct BrowzarrServer
-    server::HTTP.Server
+    server::Server
     host::String
     port::Int
     store::Union{String, Nothing}
@@ -15,7 +16,7 @@ struct BrowzarrServer
 end
 
 const SERVERS = Dict{Int, BrowzarrServer}()
-const ZARR_SERVERS = Dict{Int, HTTP.Server}()
+const ZARR_SERVERS = Dict{Int, Server}()
 const SERVERS_LOCK = ReentrantLock()
 
 include("mimeTypes.jl")
@@ -47,6 +48,23 @@ function browzarr(; port::Union{Integer, Nothing} = nothing, open::Union{Bool, N
     end
 
     return srv
+end
+
+function Base.show(io::IO, srv::BrowzarrServer)
+    color = get(io, :color, false)
+
+    styled(c, s) = color ? "\e[$(c)m$(s)\e[0m" : string(s)
+    key(s)   = styled("1;36", s)   # bold cyan
+    str(s)   = styled("32", s)     # green
+    num(s)   = styled("33", s)     # yellow
+    sym(s)   = styled("38;5;208", s) # orange
+    bold(s)  = styled("1",  s)
+    
+    print(io, bold("BrowzarrServer"), "(")
+    print(io, key("host"), "=", str(srv.host), ", ")
+    print(io, key("port"), "=", num(srv.port), ", ")
+    print(io, key("store"), "=", sym(srv.store), ", ")
+    print(io, key("format"), "=", sym(srv.format), ")")
 end
 
 end

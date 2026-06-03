@@ -48,7 +48,7 @@ function serve_zarr(path::String; host::String = "127.0.0.1")
     function handler(req::HTTP.Request)
         req.method == "OPTIONS" && return HTTP.Response(200, CORS_HEADERS)
 
-        target_path = HTTP.URIs.unescapeuri(HTTP.URIs.URI(req.target).path)
+        target_path = HTTP.unescapeuri(HTTP.URI(req.target).path)
         rel = lstrip(target_path, '/')
         contains(rel, "..") && return HTTP.Response(403, CORS_HEADERS, "Forbidden")
         fpath = abspath(joinpath(path, rel))
@@ -104,8 +104,8 @@ function serve_zarr(path::String; host::String = "127.0.0.1")
                 )
             end
         end
-
-        return HTTP.Response(200, headers, open(fpath, "r"))
+        return HTTP.Response(200, headers; body = read(fpath)) # ?  or 
+        # return HTTP.Response(200, headers; body = Mmap.mmap(fpath))
     end
     
     # HTTP.jl 2.x: non-blocking server
@@ -117,7 +117,7 @@ function serve_zarr(path::String; host::String = "127.0.0.1")
         ZARR_SERVERS[port] = server
     end
     atexit(() -> stop_zarr!(port))
-    @info "Zarr HTTP server started" path url = "http://$host:$port"
+    @info "Zarr HTTP server started" url = "http://$host:$port"
     return "http://$host:$port"
 end
 
@@ -130,7 +130,7 @@ function stop_zarr!(port::Integer)
     return lock(SERVERS_LOCK) do
         srv = get(ZARR_SERVERS, port, nothing)
         srv === nothing && return
-        close(srv)
+        forceclose(srv)
         pop!(ZARR_SERVERS, port, nothing)
         @info "Zarr server stopped" port
     end
