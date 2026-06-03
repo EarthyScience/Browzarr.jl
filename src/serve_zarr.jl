@@ -11,11 +11,15 @@ Returns `nothing` when `.zmetadata` already exists on disk, a root `zarr.json` e
 or the directory is not a Zarr v2 group/array.
 """
 function _synthetic_zmetadata(path::String)
-    meta_path = joinpath(path, ".zmetadata")
-    isfile(meta_path) && return nothing
     isfile(joinpath(path, "zarr.json")) && return nothing
     is_v2 = isfile(joinpath(path, ".zgroup")) || isfile(joinpath(path, ".zarray"))
     is_v2 || return nothing
+
+    meta_path = joinpath(path, ".zmetadata")
+    if isfile(meta_path)
+        return read(meta_path)
+    end
+
     store = DirectoryStore(path)
     d = Dict{String, Any}()
     Zarr.consolidate_metadata(store, d, "")
