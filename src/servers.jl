@@ -1,15 +1,17 @@
 function start_browzarr(; port::Union{Integer, Nothing} = nothing, host::String = "127.0.0.1", store::Union{String, Nothing} = nothing)
     return lock(SERVERS_LOCK) do
+        # The `browzarr` npm tarball unpacks under `package/` and the static build lives in `out/`.
         dir = joinpath(artifact"Browzarr", "package", "out")
         handler = static_handler(dir, store)
 
-        server = HTTP.serve!(
+        haskey(SERVERS, port) && error("Server already running on port $port")
+
+        s = _serve!(
             handler, host, isnothing(port) ? 0 : port;
             listenany = isnothing(port),
         )
-        p = HTTP.port(server)
-
-        haskey(SERVERS, p) && error("Server already running on port $p")
+        p = _port(s)
+        server = _get_server(s)
 
         srv = BrowzarrServer(server, host, p, store, detect_format(store))
         SERVERS[p] = srv
@@ -30,7 +32,7 @@ function detect_format(store::Union{String, Nothing})
 end
 
 function stop!(srv::BrowzarrServer)
-    forceclose(srv.server)
+    _forceclose(srv.server)
     return @info "Browzarr server stopped" port = srv.port
 end
 
@@ -93,7 +95,7 @@ end
 function server_url(srv::BrowzarrServer)
     base = "http://$(srv.host):$(srv.port)"
     isnothing(srv.store) && return base
-    store = startswith(srv.store, "http") ? srv.store : HTTP.escapeuri(srv.store)
+    store = startswith(srv.store, "http") ? srv.store : _escapeuri(srv.store)
     url = "$base/?store=$store"
     !isnothing(srv.format) && (url *= "&format=$(srv.format)")
     return url
@@ -159,9 +161,6 @@ function wait_for_server(host, port; timeout = 10.0)
 end
 
 function wait_for_server(url::String; timeout = 10.0)
-    uri = HTTP.URI(url)
-    host = uri.host
-    port = isempty(uri.port) ? (uri.scheme == "https" ? 443 : 80) : parse(Int, uri.port)
     deadline = time() + timeout
     while time() < deadline
         try

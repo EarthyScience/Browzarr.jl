@@ -52,7 +52,7 @@ function serve_zarr(path::String; host::String = "127.0.0.1")
     function handler(req::HTTP.Request)
         req.method == "OPTIONS" && return HTTP.Response(200, CORS_HEADERS)
 
-        target_path = HTTP.unescapeuri(HTTP.URI(req.target).path)
+        target_path = _unescapeuri(_uri(req.target).path)
         rel = lstrip(target_path, '/')
         contains(rel, "..") && return HTTP.Response(403, CORS_HEADERS, "Forbidden")
         fpath = abspath(joinpath(path, rel))
@@ -112,10 +112,11 @@ function serve_zarr(path::String; host::String = "127.0.0.1")
         # return HTTP.Response(200, headers; body = Mmap.mmap(fpath))
     end
     
-    # HTTP.jl 2.x: non-blocking server
-    server = HTTP.serve!(handler, host, 0)
-    # Extract the OS-assigned ephemeral port
-    port = HTTP.port(server)
+    # non-blocking server
+    s = _serve!(handler, host, 0)
+    port = _port(s)
+    server = _get_server(s)
+
     srv = ZarrServer(server, host, port, path)
 
     lock(SERVERS_LOCK) do
@@ -127,7 +128,7 @@ function serve_zarr(path::String; host::String = "127.0.0.1")
 end
 
 function stop_zarr!(srv::ZarrServer)
-    HTTP.forceclose(srv.server)
+    _forceclose(srv.server)
     return @info "Zarr server stopped" port = srv.port
 end
 

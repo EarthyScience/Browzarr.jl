@@ -3,12 +3,40 @@ export browzarr
 
 using LazyArtifacts
 using HTTP
-using HTTP: Server, forceclose
-using Zarr
+using Zarr, Sockets
 using Zarr: DirectoryStore
 
+# compat abstractions between HTTP 1.x and 2.x
+const HTTP_V2 = pkgversion(HTTP) >= v"2.0"
+const server_ = HTTP_V2 ? HTTP.Server : Sockets.TCPServer
+
+function _serve!(handler, host, port; kwargs...)
+    if HTTP_V2
+        return HTTP.serve!(handler, host, port; kwargs...)
+    else
+        server = Sockets.listen(Sockets.getaddrinfo(host), port)
+        return server, errormonitor(@async HTTP.serve(handler, host, port, server = server))
+    end
+end
+
+_get_server(s) = HTTP_V2 ? s : first(s)
+
+function _port(s)
+    if HTTP_V2
+        return HTTP.port(s)
+    else
+        _, port = getsockname(first(s))
+        return port
+    end
+end
+
+_forceclose(s) = HTTP_V2 ? HTTP.forceclose(s) : close(s)
+_escapeuri(p) = HTTP_V2 ? HTTP.escapeuri(p) : HTTP.URIs.escapeuri(p)
+_unescapeuri(p) = HTTP_V2 ? HTTP.unescapeuri(p) : HTTP.URIs.unescapeuri(p)
+_uri(s) = HTTP_V2 ? HTTP.URI(s) : HTTP.URIs.URI(s)
+
 struct BrowzarrServer
-    server::Server
+    server::server_
     host::String
     port::Int
     store::Union{String, Nothing}
@@ -16,7 +44,7 @@ struct BrowzarrServer
 end
 
 struct ZarrServer
-    server::Server
+    server::server_
     host::String
     port::Int
     path::String
