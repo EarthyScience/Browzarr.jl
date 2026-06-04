@@ -4,7 +4,7 @@ function start_browzarr(; port::Union{Integer, Nothing} = nothing, host::String 
         dir = joinpath(artifact"Browzarr", "package", "out")
         handler = static_handler(dir, store)
 
-        haskey(SERVERS, port) && error("Server already running on port $port")
+        !isnothing(port) && haskey(SERVERS, port) && error("Server already running on port $port")
 
         s = _serve!(
             handler, host, isnothing(port) ? 0 : port;
