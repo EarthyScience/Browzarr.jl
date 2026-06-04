@@ -34,8 +34,8 @@ Serve a NetCDF file from `store` in response to an HTTP request `req`, supportin
 """
 function file_handler(store::Union{String, Nothing}, req)
     isnothing(store) && return HTTP.Response(400, "No store configured")
-    uri = HTTP.URIs.URI(req.target)
-    path = get(HTTP.URIs.queryparams(uri), "path", nothing)
+    uri = _uri(req.target)
+    path = get(_queryparams(uri), "path", nothing)
 
     isnothing(path) && return HTTP.Response(400, "Missing path")
     path != store && return HTTP.Response(403, "Forbidden")
@@ -72,7 +72,7 @@ function file_handler(store::Union{String, Nothing}, req)
         end
     end
 
-    return HTTP.Response(200, headers; body = open(path, "r"))
+    return HTTP.Response(200, headers; body = read(path))
 end
 
 """

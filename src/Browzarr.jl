@@ -34,6 +34,7 @@ _forceclose(s) = HTTP_V2 ? HTTP.forceclose(s) : close(s)
 _escapeuri(p) = HTTP_V2 ? HTTP.escapeuri(p) : HTTP.URIs.escapeuri(p)
 _unescapeuri(p) = HTTP_V2 ? HTTP.unescapeuri(p) : HTTP.URIs.unescapeuri(p)
 _uri(s) = HTTP_V2 ? HTTP.URI(s) : HTTP.URIs.URI(s)
+_queryparams(uri) = HTTP_V2 ? HTTP.queryparams(uri) : HTTP.URIs.queryparams(uri)
 
 struct BrowzarrServer
     server::server_
