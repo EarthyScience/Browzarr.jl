@@ -36,8 +36,9 @@ end
         zcreate(Float32, g, "temp", 4, 4)
         @test !isfile(joinpath(dir, ".zmetadata"))
 
-        url = serve_zarr(dir)
-        port = parse(Int, HTTP.URIs.URI(url).port)
+        srv = serve_zarr(dir)
+        url = "http://$(srv.host):$(srv.port)"
+        port = srv.port
         Browzarr.wait_for_server(url)
         try
             meta = HTTP.get("$url/.zmetadata"; retry = false)
@@ -58,8 +59,9 @@ end
 @testset "serve_zarr does not synthesize .zmetadata when zarr.json exists" begin
     mktempdir() do dir
         write(joinpath(dir, "zarr.json"), "{}")
-        url = serve_zarr(dir)
-        port = parse(Int, HTTP.URIs.URI(url).port)
+        srv = serve_zarr(dir)
+        url = "http://$(srv.host):$(srv.port)"
+        port = srv.port
         try
             meta = HTTP.get("$url/.zmetadata"; retry = false, status_exception = false)
             @test meta.status == 404

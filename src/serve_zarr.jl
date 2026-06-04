@@ -11,11 +11,15 @@ Returns `nothing` when `.zmetadata` already exists on disk, a root `zarr.json` e
 or the directory is not a Zarr v2 group/array.
 """
 function _synthetic_zmetadata(path::String)
-    meta_path = joinpath(path, ".zmetadata")
-    isfile(meta_path) && return nothing
     isfile(joinpath(path, "zarr.json")) && return nothing
     is_v2 = isfile(joinpath(path, ".zgroup")) || isfile(joinpath(path, ".zarray"))
     is_v2 || return nothing
+
+    meta_path = joinpath(path, ".zmetadata")
+    if isfile(meta_path)
+        return read(meta_path)
+    end
+
     store = DirectoryStore(path)
     d = Dict{String, Any}()
     Zarr.consolidate_metadata(store, d, "")
@@ -39,9 +43,6 @@ function serve_zarr(path::String; host::String = "127.0.0.1")
     !isnothing(synthetic_zmetadata) &&
         @info "Serving synthesized .zmetadata for unconsolidated Zarr v2 store" path
 
-    server = Sockets.listen(Sockets.getaddrinfo(host), 0) # OS picks a free port
-    _, port = getsockname(server)
-
     CORS_HEADERS = [
         "Access-Control-Allow-Origin" => "*",
         "Access-Control-Allow-Methods" => "GET, OPTIONS",
@@ -51,7 +52,7 @@ function serve_zarr(path::String; host::String = "127.0.0.1")
     function handler(req::HTTP.Request)
         req.method == "OPTIONS" && return HTTP.Response(200, CORS_HEADERS)
 
-        target_path = HTTP.URIs.unescapeuri(HTTP.URIs.URI(req.target).path)
+        target_path = _unescapeuri(_uri(req.target).path)
         rel = lstrip(target_path, '/')
         contains(rel, "..") && return HTTP.Response(403, CORS_HEADERS, "Forbidden")
         fpath = abspath(joinpath(path, rel))
@@ -107,17 +108,28 @@ function serve_zarr(path::String; host::String = "127.0.0.1")
                 )
             end
         end
-
-        return HTTP.Response(200, headers, open(fpath, "r"))
+        return HTTP.Response(200, headers; body = read(fpath)) # ?  or 
+        # return HTTP.Response(200, headers; body = Mmap.mmap(fpath))
     end
+    
+    # non-blocking server
+    s = _serve!(handler, host, 0)
+    port = _port(s)
+    server = _get_server(s)
 
-    errormonitor(@async HTTP.serve(handler, host, port, server = server))
+    srv = ZarrServer(server, host, port, path)
+
     lock(SERVERS_LOCK) do
-        ZARR_SERVERS[port] = server
+        ZARR_SERVERS[port] = srv
     end
     atexit(() -> stop_zarr!(port))
-    @info "Zarr HTTP server started" path url = "http://$host:$port"
-    return "http://$host:$port"
+    @info "Zarr HTTP server started" url = "http://$host:$port"
+    return srv
+end
+
+function stop_zarr!(srv::ZarrServer)
+    _forceclose(srv.server)
+    return @info "Zarr server stopped" port = srv.port
 end
 
 """
@@ -129,8 +141,36 @@ function stop_zarr!(port::Integer)
     return lock(SERVERS_LOCK) do
         srv = get(ZARR_SERVERS, port, nothing)
         srv === nothing && return
-        close(srv)
+        stop_zarr!(srv)
         pop!(ZARR_SERVERS, port, nothing)
-        @info "Zarr server stopped" port
     end
+end
+
+"""
+    stop_all_zarr!()
+
+Stop all Zarr HTTP servers.
+"""
+function stop_all_zarr!()
+    servers = lock(SERVERS_LOCK) do
+        s = collect(values(ZARR_SERVERS))
+        empty!(ZARR_SERVERS)
+        s
+    end
+    for srv in servers
+        try
+            stop_zarr!(srv)
+        catch e
+            @warn "Failed to stop Zarr server" port = srv.port exception = e
+        end
+    end
+    return @info "All Zarr servers stopped"
+end
+
+running_zarr_servers() = lock(SERVERS_LOCK) do
+    collect(values(ZARR_SERVERS))
+end
+
+get_zarr_server(port::Integer) = lock(SERVERS_LOCK) do
+    get(ZARR_SERVERS, port, nothing)
 end
