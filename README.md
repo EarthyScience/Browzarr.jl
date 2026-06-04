@@ -46,6 +46,12 @@ browzarr(; store="/absolute/path/to/zarr_file.zarr")      # local zarr directory
 browzarr(; store="https://s3.bucket.de:67/misc/out.zarr") # remote Zarr store
 ```
 
+List all `BrowzarrServer`s
+
+```julia
+Browzarr.running_servers()
+```
+
 To stop all running servers:
 
 ```julia
@@ -58,7 +64,7 @@ To stop a server on a specific port:
 Browzarr.stop!(3000)
 ```
 
-### Setup Local Zarr Server
+### Setup a Local Zarr Server
 
 You can pass directly the path to your local `zarr` directory
 ```julia
@@ -74,3 +80,23 @@ store = Browzarr.serve_zarr("/absolute/path/to/zarr_file.zarr")
 # now launch it!
 browzarr(; store=store)
 ```
+
+List all `ZarrServer`s
+
+```julia
+Browzarr.running_zarr_servers()
+```
+
+To stop all running `ZarrServer`s:
+
+```julia
+Browzarr.stop_all_zarr!()
+```
+
+To stop a `ZarrServer` on a specific port:
+
+```julia
+Browzarr.stop_zarr!(16180)
+```
+
+---
