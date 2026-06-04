@@ -1,25 +1,36 @@
-"""
-    _synthetic_zmetadata(path) -> Union{Vector{UInt8}, Nothing}
-
-Build the same consolidated metadata dict as `Zarr.consolidate_metadata(s::AbstractStore, d, prefix)`
-with `prefix == ""`, then serialize it like `Zarr.consolidate_metadata(s::AbstractStore, p)`
-(the `JSON.print` of `metadata` / `zarr_consolidated_format`) but **without** writing `s[p, .zmetadata]` to disk.
-`Zarr.zarr_req_handler` instead calls `consolidate_metadata(s)` so the store gains a real `.zmetadata`
-file before keys are served.
-
-Returns `nothing` when `.zmetadata` already exists on disk, a root `zarr.json` exists (v2-only synthesis),
-or the directory is not a Zarr v2 group/array.
-"""
-function _synthetic_zmetadata(path::String)
-    isfile(joinpath(path, "zarr.json")) && return nothing
-    is_v2 = isfile(joinpath(path, ".zgroup")) || isfile(joinpath(path, ".zarray"))
-    is_v2 || return nothing
-
-    meta_path = joinpath(path, ".zmetadata")
-    if isfile(meta_path)
-        return read(meta_path)
+function _get_metadata(path::String)
+    cons_meta, cons_key = _read_consolidated_metadata(path)
+    if !isnothing(cons_meta)
+        return cons_meta, cons_key
+    else
+        created_metadata = _generate_metadata(path)
+        return created_metadata, cons_key
     end
+end
 
+function _read_consolidated_metadata(path::String)
+    zarr_json = joinpath(path, "zarr.json")
+    if isfile(zarr_json)
+        root = Zarr.JSON.parsefile(zarr_json; dicttype=Dict{String,Any})
+        if haskey(root, "consolidated_metadata")
+            @info "Reading consolidated metadata from zarr.json" path
+            return read(zarr_json), "zarr.json"
+        end
+        return nothing, "zarr.json"
+    end
+    zmetadata = joinpath(path, ".zmetadata")
+    if isfile(zmetadata)
+        @info "Reading consolidated metadata from .zmetadata" path
+        return read(zmetadata), ".zmetadata"
+    end
+    return nothing, ".zmetadata"
+end
+
+"""
+    _generate_metadata(path) -> Union{Vector{UInt8}, Nothing}
+"""
+function _generate_metadata(path::String)
+    @info "Serving synthesized .zmetadata for unconsolidated Zarr v2 store" path
     store = DirectoryStore(path)
     d = Dict{String, Any}()
     Zarr.consolidate_metadata(store, d, "")
@@ -39,9 +50,7 @@ synthesized `.zmetadata` so HTTP clients can discover the hierarchy without dire
 """
 function serve_zarr(path::String; host::String = "127.0.0.1")
     path = abspath(path)
-    synthetic_zmetadata = _synthetic_zmetadata(path)
-    !isnothing(synthetic_zmetadata) &&
-        @info "Serving synthesized .zmetadata for unconsolidated Zarr v2 store" path
+    cons_metadata, cons_key = _get_metadata(path)
 
     CORS_HEADERS = [
         "Access-Control-Allow-Origin" => "*",
@@ -62,14 +71,18 @@ function serve_zarr(path::String; host::String = "127.0.0.1")
             return HTTP.Response(403, CORS_HEADERS, "Forbidden")
         end
 
-        if rel == ".zmetadata" && !isnothing(synthetic_zmetadata)
+        if !isnothing(cons_key) && rel == cons_key && !isnothing(cons_metadata)
+            # @info "Serving consolidated metadata" rel cons_key length(cons_metadata)
+            # verify it parses correctly
+            # @info "Content preview" preview=String(cons_metadata[1:min(200, end)])
+
             headers = [
                 CORS_HEADERS...,
                 "Content-Type" => "application/json",
-                "Content-Length" => string(length(synthetic_zmetadata)),
+                "Content-Length" => string(length(cons_metadata)),
             ]
             req.method == "HEAD" && return HTTP.Response(200, headers)
-            return HTTP.Response(200, headers; body = synthetic_zmetadata)
+            return HTTP.Response(200, headers; body = cons_metadata)
         end
 
         isfile(fpath) || return HTTP.Response(404, CORS_HEADERS, "Not found")
