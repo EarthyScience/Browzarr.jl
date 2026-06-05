@@ -1,56 +1,11 @@
-function _get_metadata(path::String)
-    cons_meta, cons_key = _read_consolidated_metadata(path)
-    if !isnothing(cons_meta)
-        return cons_meta, cons_key
-    else
-        created_metadata = _generate_metadata(path)
-        return created_metadata, cons_key
-    end
-end
-
-function _read_consolidated_metadata(path::String)
-    zarr_json = joinpath(path, "zarr.json")
-    if isfile(zarr_json)
-        root = Zarr.JSON.parsefile(zarr_json; dicttype=Dict{String,Any})
-        if haskey(root, "consolidated_metadata")
-            @info "Reading consolidated metadata from zarr.json" path
-            return read(zarr_json), "zarr.json"
-        end
-        return nothing, "zarr.json"
-    end
-    zmetadata = joinpath(path, ".zmetadata")
-    if isfile(zmetadata)
-        @info "Reading consolidated metadata from .zmetadata" path
-        return read(zmetadata), ".zmetadata"
-    end
-    return nothing, ".zmetadata"
-end
-
 """
-    _generate_metadata(path) -> Union{Vector{UInt8}, Nothing}
-"""
-function _generate_metadata(path::String)
-    @info "Serving synthesized .zmetadata for unconsolidated Zarr v2 store" path
-    store = DirectoryStore(path)
-    d = Dict{String, Any}()
-    Zarr.consolidate_metadata(store, d, "")
-    buf = IOBuffer()
-    Zarr.JSON.print(buf, Dict("metadata" => d, "zarr_consolidated_format" => 1), 4)
-    return take!(buf)
-end
+    serve_zarr(path::String; host::String = "127.0.0.1")
 
-"""
-    serve_zarr(path; host="127.0.0.1")
-
-Spin up a local HTTP server exposing a Zarr store at `path`.
-Returns the URL string to pass to `browzarr(; store=...)`.
-
-Unconsolidated Zarr v2 stores (`.zgroup` / `.zattrs` only) are served with a
-synthesized `.zmetadata` so HTTP clients can discover the hierarchy without directory listing.
+Serve a local Zarr store as an HTTP server.
 """
 function serve_zarr(path::String; host::String = "127.0.0.1")
     path = abspath(path)
-    cons_metadata, cons_key = _get_metadata(path)
+    synthetic_metadata = _has_consolidated_metadata(path) ? nothing : _generate_metadata(path)
 
     CORS_HEADERS = [
         "Access-Control-Allow-Origin" => "*",
@@ -71,18 +26,14 @@ function serve_zarr(path::String; host::String = "127.0.0.1")
             return HTTP.Response(403, CORS_HEADERS, "Forbidden")
         end
 
-        if !isnothing(cons_key) && rel == cons_key && !isnothing(cons_metadata)
-            # @info "Serving consolidated metadata" rel cons_key length(cons_metadata)
-            # verify it parses correctly
-            # @info "Content preview" preview=String(cons_metadata[1:min(200, end)])
-
+        if !isnothing(synthetic_metadata) && !isfile(fpath)
             headers = [
                 CORS_HEADERS...,
                 "Content-Type" => "application/json",
-                "Content-Length" => string(length(cons_metadata)),
+                "Content-Length" => string(length(synthetic_metadata)),
             ]
             req.method == "HEAD" && return HTTP.Response(200, headers)
-            return HTTP.Response(200, headers; body = cons_metadata)
+            return HTTP.Response(200, headers; body = synthetic_metadata)
         end
 
         isfile(fpath) || return HTTP.Response(404, CORS_HEADERS, "Not found")
@@ -112,32 +63,47 @@ function serve_zarr(path::String; host::String = "127.0.0.1")
                     seek(io, start)
                     read(io, len)
                 end
-                return HTTP.Response(
-                    206, [
-                        headers...,
-                        "Content-Range" => "bytes $start-$stop/$filesize",
-                        "Content-Length" => string(len),
-                    ]; body
-                )
+                return HTTP.Response(206, [
+                    headers...,
+                    "Content-Range" => "bytes $start-$stop/$filesize",
+                    "Content-Length" => string(len),
+                ]; body)
             end
         end
-        return HTTP.Response(200, headers; body = read(fpath)) # ?  or 
-        # return HTTP.Response(200, headers; body = Mmap.mmap(fpath))
+        return HTTP.Response(200, headers; body = read(fpath))
     end
-    
-    # non-blocking server
+
     s = _serve!(handler, host, 0)
     port = _port(s)
     server = _get_server(s)
 
     srv = ZarrServer(server, host, port, path)
-
     lock(SERVERS_LOCK) do
         ZARR_SERVERS[port] = srv
     end
     atexit(() -> stop_zarr!(port))
     @info "Zarr HTTP server started" url = "http://$host:$port"
     return srv
+end
+
+function _has_consolidated_metadata(path::String)
+    zarr_json = joinpath(path, "zarr.json")
+    if isfile(zarr_json)
+        root = Zarr.JSON.parsefile(zarr_json; dicttype=Dict{String,Any})
+        return haskey(root, "consolidated_metadata")
+    end
+    return isfile(joinpath(path, ".zmetadata"))
+end
+
+function _generate_metadata(path::String)
+    store = DirectoryStore(path)
+    d = Dict{String, Any}()
+    Zarr.consolidate_metadata(store, d, "") # this should work for v2 and v3 stores, check support in Zarr.jl
+    isempty(d) && return nothing
+    @info "Serving synthesized metadata for unconsolidated Zarr store" path
+    buf = IOBuffer()
+    Zarr.JSON.print(buf, Dict("metadata" => d, "zarr_consolidated_format" => 1), 4)
+    return take!(buf)
 end
 
 function stop_zarr!(srv::ZarrServer)
