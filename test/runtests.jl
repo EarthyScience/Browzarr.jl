@@ -56,17 +56,9 @@ end
     end
 end
 
-@testset "serve_zarr does not synthesize .zmetadata when zarr.json exists" begin
+@testset "serve_zarr rejects zarr.json without consolidated_metadata" begin
     mktempdir() do dir
         write(joinpath(dir, "zarr.json"), "{}")
-        srv = serve_zarr(dir)
-        url = "http://$(srv.host):$(srv.port)"
-        port = srv.port
-        try
-            meta = HTTP.get("$url/.zmetadata"; retry = false, status_exception = false)
-            @test meta.status == 404
-        finally
-            stop_zarr!(port)
-        end
+        @test_throws ArgumentError serve_zarr(dir)
     end
 end
