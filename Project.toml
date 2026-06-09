@@ -1,6 +1,6 @@
 name = "Browzarr"
 uuid = "d7a009df-479f-4526-be69-544662986fe6"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Lazaro Alonso <lazarus.alon@gmail.com>", "Jeran Poehls <jpoehls@bgc-jena.mpg.de>"]
 
 [deps]
